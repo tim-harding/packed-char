@@ -1,27 +1,32 @@
-//! This type allows us to store either a char or up to 22 bits of other
-//! information in the space of a char. We do this by taking advantage of the
-//! valid ranges for a char, which are 0..0xD800 and 0xDFFF..0x10FFFF. The range
-//! 0xD800..=0xDFFF contains surrogate code points which are not valid chars. We
-//! store chars in their normal representation. To encode the 22 bits without
-//! overlapping valid char ranges, we first split it into two 11 bit chunks. The
-//! left chunk is stored in leading bits of the u32 that chars never overlap
-//! with. The right chunk needs to be stored in the trailing bits, which are
-//! also used by chars. To do this, we make note of the bit pattern in the
-//! surrogate range:
+//! [`PackedChar`] allows either a `char` or up to 22 bits of other information to be stored in 32
+//! bits of space.
 //!
+//! # Details
+//!
+//! To determine what type of data a [`PackedChar`] holds, we take advantage of the valid ranges
+//! for a `char`, which are `0..0xD800` and `0xDFFF..0x10FFFF` (see the documentation for
+//! [`char`]). The range `0xD800..=0xDFFF` contains surrogate code points, which are not valid
+//! UTF-8 characters. We store `char`s in their normal representation. To store a [`U22`] without
+//! overlapping valid `char` ranges, we first split it into two 11-bit chunks. The left chunk is
+//! stored in the leading bits that `char`s never overlap with. The right chunk is stored in the
+//! trailing bits, which do overlap the bits used by `char`s. To make this work, we make note of
+//! the bit pattern in the surrogate range:
+//!
+//! ```text
 //! 1101100000000000
 //! 1101111111111111
+//! ```
 //!
-//! Note that the leading five bits are constant for this range. Therefore, we
-//! extract them as the surrogate mask and set them along with the left and
-//! right chunks of our 22 bits:
+//! Since the leading 5 bits are constant for this range, we set them along with the left and right
+//! chunks of our 22 bits:
 //!
+//! ```text
 //! 11111111111  00000    11011            11111111111
 //! left chunk | unused | surrogate mask | right chunk
+//! ```
 //!
-//! Now if we mask out the left chunk, the remaining bit pattern will never be a
-//! valid char because it falls in the surrogate range. We use this to
-//! distinguish what the packed char contains.
+//! Now if we mask out the left chunk, the remaining bit pattern will never be a valid char because
+//! it falls in the surrogate range. This disambiguates what the [`PackedChar`] contains.
 
 mod u22;
 pub use u22::{U22FromU32Error, U22};
