@@ -104,7 +104,10 @@ impl Deref for U22 {
 
 /// Error type for 32-bit to 22-bit integer conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct U22FromU32Error(pub u32);
+pub struct U22FromU32Error(
+    /// The `u32` that failed to be converted to a [`U22`].
+    pub u32,
+);
 
 impl Display for U22FromU32Error {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {

@@ -1,32 +1,15 @@
-//! [`PackedChar`] allows either a `char` or up to 22 bits of other information to be stored in 32
-//! bits of space.
+//! [`PackedChar`] stores either a [`char`] or a [`U22`] in 32 bits of space.
 //!
-//! # Details
+//! # Examples
 //!
-//! To determine what type of data a [`PackedChar`] holds, we take advantage of the valid ranges
-//! for a `char`, which are `0..0xD800` and `0xDFFF..0x10FFFF` (see the documentation for
-//! [`char`]). The range `0xD800..=0xDFFF` contains surrogate code points, which are not valid
-//! UTF-8 characters. We store `char`s in their normal representation. To store a [`U22`] without
-//! overlapping valid `char` ranges, we first split it into two 11-bit chunks. The left chunk is
-//! stored in the leading bits that `char`s never overlap with. The right chunk is stored in the
-//! trailing bits, which do overlap the bits used by `char`s. To make this work, we make note of
-//! the bit pattern in the surrogate range:
-//!
-//! ```text
-//! 1101100000000000
-//! 1101111111111111
 //! ```
-//!
-//! Since the leading 5 bits are constant for this range, we set them along with the left and right
-//! chunks of our 22 bits:
-//!
-//! ```text
-//! 11111111111  00000    11011            11111111111
-//! left chunk | unused | surrogate mask | right chunk
+//! use packed_char::{PackedChar, U22, Contents};
+//! # use packed_char::U22FromU32Error;
+//! # fn main() -> Result<(), U22FromU32Error> {
+//! assert_eq!(PackedChar::from('a').contents(), Contents::Char('a'));
+//! assert_eq!(PackedChar::try_from(42)?.contents(), Contents::U22(U22::from_u32(42)?));
+//! # Ok(()) }
 //! ```
-//!
-//! Now if we mask out the left chunk, the remaining bit pattern will never be a valid char because
-//! it falls in the surrogate range. This disambiguates what the [`PackedChar`] contains.
 
 mod u22;
 pub use u22::{U22FromU32Error, U22};
@@ -45,7 +28,6 @@ impl PackedChar {
     const LEADING_MASK: u32 = !(u32::MAX >> Self::LEADING);
     const TRAILING: u32 = Self::SURROGATE_LOW.trailing_zeros(); // 11
     const TRAILING_MASK: u32 = !(u32::MAX << Self::TRAILING);
-    const CHAR_MASK: u32 = !Self::LEADING_MASK;
     const MAX_U22_LEADING: u32 = U22::MAX.leading_zeros();
 
     /// Creates a new value from the given `char`.
@@ -94,18 +76,16 @@ impl PackedChar {
     /// # }
     /// ```
     pub fn contents(self) -> Contents {
-        let c = self.0 & Self::CHAR_MASK;
-        if !(Self::SURROGATE_LOW..=Self::SURROGATE_HIGH).contains(&c) {
-            // TODO: Make this function const when from_u32_unchecked as const
-            // is stablized.
-            Contents::Char(unsafe { char::from_u32_unchecked(c) })
-        } else {
-            let i = self.0 & !Self::SURROGATE_MASK;
-            let trailing = i & Self::TRAILING_MASK;
-            let leading = i & Self::LEADING_MASK;
-            Contents::U22(unsafe {
-                U22::from_u32_unchecked(trailing | (leading >> Self::MAX_U22_LEADING))
-            })
+        // TODO: Make function const when const version of char::from_u32 is stabilized
+        match char::from_u32(self.0) {
+            Some(c) => Contents::Char(c),
+            None => {
+                let trailing = self.0 & Self::TRAILING_MASK;
+                let leading = self.0 & Self::LEADING_MASK;
+                let u22 = trailing | (leading >> Self::MAX_U22_LEADING);
+                // SAFETY: Valid by construction since we reversed the storage procedure.
+                Contents::U22(unsafe { U22::from_u32_unchecked(u22) })
+            }
         }
     }
 }
@@ -138,6 +118,8 @@ impl TryFrom<u32> for PackedChar {
 }
 
 /// The contents of a [`PackedChar`].
+///
+/// Returned from [`PackedChar::contents`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Contents {
     Char(char),
@@ -154,6 +136,12 @@ mod tests {
             '\0',
             '\u{D7FF}',
             '\u{E000}',
+            // Char containing surrogate mask
+            #[allow(clippy::unusual_byte_groupings)]
+            char::from_u32(0b1_11011_11111111111).unwrap(),
+            // Char not containing surrogate mask
+            #[allow(clippy::unusual_byte_groupings)]
+            char::from_u32(0b1_00000_11111111111).unwrap(),
             char::REPLACEMENT_CHARACTER,
             char::MAX,
             'a',

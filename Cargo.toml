@@ -2,7 +2,10 @@
 name = "packed-char"
 version = "0.1.0"
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-[dependencies]
+authors = ["Tim Harding"]
+repository = "https://github.com/tim-harding/packed-char"
+license = "MIT"
+keywords = ["char", "memory", "compress"]
+categories = ["compression"]
+description = "Stores a char or a 22-bit integer in 32 bits"
+readme = "README.md"
