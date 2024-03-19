@@ -58,9 +58,11 @@ impl U22 {
     ///
     /// # Examples
     ///
+    /// ```
     /// # use packed_char::U22;
     /// let u22 = U22::from_u32(42).unwrap();
-    /// assert_eq!(u22.as_ref(), 42);
+    /// assert_eq!(u22.as_ref(), &42);
+    /// ```
     pub const fn as_u32(self) -> u32 {
         self.0
     }

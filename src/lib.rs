@@ -33,6 +33,7 @@ pub use u22::{U22FromU32Error, U22};
 
 use std::fmt::{self, Debug, Formatter};
 
+/// Stores either a `char` or a [`U22`] in 32 bits of space.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
 pub struct PackedChar(u32);
 
@@ -47,10 +48,29 @@ impl PackedChar {
     const CHAR_MASK: u32 = !Self::LEADING_MASK;
     const MAX_U22_LEADING: u32 = U22::MAX.leading_zeros();
 
+    /// Creates a new value from the given `char`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use packed_char::{PackedChar, Contents};
+    /// let pack = PackedChar::from_char('a');
+    /// assert_eq!(pack.contents(), Contents::Char('a'));
+    /// ```
     pub const fn from_char(c: char) -> Self {
         Self(c as u32)
     }
 
+    /// Creates a new value from the given `u22`.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use packed_char::{PackedChar, Contents, U22};
+    /// let u22 = U22::from_u32(42).unwrap();
+    /// let pack = PackedChar::from_u22(u22);
+    /// assert_eq!(pack.contents(), Contents::U22(u22));
+    /// ```
     pub const fn from_u22(u22: U22) -> Self {
         let n = u22.as_u32();
         let leading = (n << Self::MAX_U22_LEADING) & Self::LEADING_MASK;
@@ -58,17 +78,32 @@ impl PackedChar {
         Self(leading | trailing | Self::SURROGATE_MASK)
     }
 
-    pub fn contents(self) -> PackedCharContents {
+    /// Gets the stored value.
+    ///
+    /// # Examples
+    ///
+    /// ```
+    /// # use packed_char::{PackedChar, Contents, U22, U22FromU32Error};
+    /// # fn main() -> Result<(), U22FromU32Error> {
+    /// let pack = PackedChar::try_from(42)?;
+    /// assert_eq!(pack.contents(), Contents::U22(U22::from_u32(42)?));
+    ///
+    /// let pack = PackedChar::from('a');
+    /// assert_eq!(pack.contents(), Contents::Char('a'));
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn contents(self) -> Contents {
         let c = self.0 & Self::CHAR_MASK;
         if !(Self::SURROGATE_LOW..=Self::SURROGATE_HIGH).contains(&c) {
             // TODO: Make this function const when from_u32_unchecked as const
             // is stablized.
-            PackedCharContents::Char(unsafe { char::from_u32_unchecked(c) })
+            Contents::Char(unsafe { char::from_u32_unchecked(c) })
         } else {
             let i = self.0 & !Self::SURROGATE_MASK;
             let trailing = i & Self::TRAILING_MASK;
             let leading = i & Self::LEADING_MASK;
-            PackedCharContents::U22(unsafe {
+            Contents::U22(unsafe {
                 U22::from_u32_unchecked(trailing | (leading >> Self::MAX_U22_LEADING))
             })
         }
@@ -102,8 +137,9 @@ impl TryFrom<u32> for PackedChar {
     }
 }
 
+/// The contents of a [`PackedChar`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum PackedCharContents {
+pub enum Contents {
     Char(char),
     U22(U22),
 }
@@ -114,29 +150,35 @@ mod tests {
 
     #[test]
     fn gets_back_chars() {
-        let test_chars = ['\0', '\u{D7FF}', '\u{E000}', '\u{10FFFF}', 'a', '1', '🫠'];
+        let test_chars = [
+            '\0',
+            '\u{D7FF}',
+            '\u{E000}',
+            char::REPLACEMENT_CHARACTER,
+            char::MAX,
+            'a',
+            '1',
+            '🫠',
+        ];
         for c in test_chars {
             let packed = PackedChar::from_char(c);
-            assert_eq!(packed.contents(), PackedCharContents::Char(c));
+            assert_eq!(packed.contents(), Contents::Char(c));
         }
     }
 
     #[test]
-    fn gets_back_indices() {
-        let test_indices = [U22::MAX, 0x3FFFFFu32, 0, 69, 420, 0b1010101010101010101010];
-        for i in test_indices {
+    fn gets_back_ints() {
+        let ints = [U22::MAX, 0x3FFFFF, 0, 42, 0b1010101010101010101010];
+        for i in ints {
             let packed = PackedChar::try_from(i).unwrap();
-            assert_eq!(
-                packed.contents(),
-                PackedCharContents::U22(U22::try_from(i).unwrap())
-            );
+            assert_eq!(packed.contents(), Contents::U22(U22::try_from(i).unwrap()));
         }
     }
 
     #[test]
     fn fails_out_of_bounds_indices() {
-        let test_indices = [U22::MAX + 1, 0b10101010101010101010101010101010];
-        for i in test_indices {
+        let ints = [U22::MAX + 1, u32::MAX, 0b10101010101010101010101010101010];
+        for i in ints {
             let packed = PackedChar::try_from(i);
             assert_eq!(packed, Err(U22FromU32Error(i)));
         }
