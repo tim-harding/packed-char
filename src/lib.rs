@@ -11,10 +11,12 @@
 //! # Ok(()) }
 //! ```
 
+#![no_std]
+
 mod u22;
 pub use u22::{U22FromU32Error, U22};
 
-use std::fmt::{self, Debug, Formatter};
+use core::fmt::{self, Debug, Formatter};
 
 /// Stores either a `char` or a [`U22`] in 32 bits of space.
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]

@@ -1,6 +1,5 @@
-use std::{
+use core::{
     borrow::Borrow,
-    error::Error,
     fmt::{self, Display, Formatter},
     ops::Deref,
 };
@@ -102,6 +101,8 @@ impl Deref for U22 {
     }
 }
 
+// TODO: Implement core::error::Error when stabilized
+
 /// Error type for 32-bit to 22-bit integer conversion.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct U22FromU32Error(
@@ -114,5 +115,3 @@ impl Display for U22FromU32Error {
         write!(f, "{} exceeds U22::MAX", self.0)
     }
 }
-
-impl Error for U22FromU32Error {}
