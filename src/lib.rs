@@ -77,8 +77,7 @@ impl PackedChar {
     /// # Ok(())
     /// # }
     /// ```
-    pub fn contents(self) -> Contents {
-        // TODO: Make function const when const version of char::from_u32 is stabilized
+    pub const fn contents(self) -> Contents {
         match char::from_u32(self.0) {
             Some(c) => Contents::Char(c),
             None => {
